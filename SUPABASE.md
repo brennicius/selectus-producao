@@ -27,3 +27,13 @@ As tabelas mantêm RLS; visitantes têm leitura pública apenas dos dados de pro
 `db/schema.sql` descreve a estrutura final. `db/checks.sql` verifica o acesso público, quantidades, zero, isolamento de lojas e conflitos, com rollback dos dados de teste. `node --test tests/cloud.test.cjs` verifica envio por loja, ausência de login e preservação dos rascunhos.
 
 O plano Free tem limites de capacidade e regras de inatividade do provedor. Não foi realizado upgrade.
+
+## Importação direta de Excel
+
+Em ADM → Importar plano, envie um arquivo .xlsx ou JSON. O Excel é lido localmente no navegador, sem serviço pago e sem biblioteca externa. Arquivos .xls antigos precisam ser salvos como .xlsx. A leitura usa recursos nativos de navegadores atualizados.
+
+O importador encontra uma única aba com Produto na primeira coluna, lê as colunas dos locais e ignora TOTAL, Validade, subtotais e linhas de categoria. A data é identificada nos cabeçalhos de produção, não nas datas de validade ou de vendas. O lote é solicitado quando não aparece no arquivo. A relação entre cada coluna e o local é exibida e pode ser corrigida antes de confirmar, incluindo as siglas HP, SA e Iz.
+
+Quantidades vazias viram zero planejado; números fracionários/negativos, fórmulas nas quantidades por local e produtos desconhecidos bloqueiam o plano inteiro. A conferência mostra os totais por local e a data/lote antes de habilitar a importação. A observação escrita no cabeçalho não substitui os números preenchidos. A coluna Produzido começa vazia. A regra existente de arredondamento de sobremesas na meta da cozinha continua ativa, independentemente das fórmulas de total do Excel.
+
+Teste de navegador com a planilha fornecida: 26/10/2026, 25 produtos, seis locais, 489 unidades planejadas, sendo Portugues 171, Amaro 108, Izabel 142, Agnus 8, CRIS 40 e Amaro2 20. A conferência não salvou esse plano no banco, pois o lote real não foi informado. Testes adicionais cobrem siglas, subtotais, fórmulas, quantidades inválidas, campos obrigatórios e ZIP inválido.
