@@ -60,8 +60,7 @@ Saldo é enviado menos descartado: não é venda nem estoque atual.
 O XLSX usa apenas Dados Brutos (Tipo=Descarte), ou Relatório de Lotes como fallback.
 Não soma abas derivadas. Cada importação substitui uma única cópia com controle de
 revisão; repetir o arquivo não duplica registros. Use exportações completas para
-manter o histórico da origem. Dados sem lote e nomes não associados ficam nas
-pendências. As associações são explícitas e compartilhadas no Supabase.
+manter o histórico da origem. Somente produtos da produção entram nos relatórios e nas associações. Itens de revenda são ignorados. Produtos reconhecidos sem lote ou local cadastrado ficam nas pendências. As associações são explícitas e compartilhadas no Supabase.
 
 A cópia não sincroniza automaticamente com o Google Sheets. Para atualizar,
 exporte a planilha original como XLSX e use Atualizar com planilha na aba Envios e
