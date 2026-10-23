@@ -75,3 +75,18 @@ Planos com envio registrado preservam data e lote e não podem ser excluídos pe
 ## Sincronização automática opcional
 
 A integração pronta em `integrations/selectus-google-sync.gs` pode ser instalada no Apps Script da planilha original. Após autorização única do proprietário, envia os descartes dos nossos produtos a cada 5 minutos. Veja `integrations/README.md`. A instalação no Google ainda é necessária; o deploy do site não ativa o acionador.
+
+## Envio de uma loja em uma única confirmação
+
+A migração aditiva `db/bulk-shipments.sql` adiciona a RPC `production_ship_store`.
+A Conferência preenche os campos com o produzido; quando já existe um envio, mantém
+esse valor salvo. Valores diferentes podem ser digitados diretamente na tabela.
+Campos vazios não criam envios; zero é um registro explícito de nenhum envio.
+Responsável e motivo são informados uma única vez por confirmação da loja.
+
+Todos os itens são salvos na mesma transação usando a validação e auditoria da RPC
+existente. Conflitos no envio ou mudanças no produzido após a abertura da tela
+revertem o conjunto inteiro; nenhum item é salvo parcialmente. Repetir um registro
+sem mudanças não duplica a auditoria. Os rascunhos por loja são mantidos durante a
+navegação da sessão; Recarregar quantidades descarta o rascunho da loja selecionada
+após confirmação e relê o banco. Validar com `db/bulk-shipments-checks.sql` (rollback).
