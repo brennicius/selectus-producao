@@ -31,3 +31,11 @@ A tabela tem rolagem interna com os cabeçalhos dos locais e a coluna de produto
 Em Imprimir, escolha produção consolidada (todos os locais), distribuição de um local ou folhas separadas para todos os locais. Pode incluir ou omitir os produtos zerados. A impressão exige data e lote. Sobremesas arredondam apenas no relatório consolidado; a distribuição usa quantidades exatas. Cada local começa em uma página nova e pode ocupar mais páginas caso tenha muitos produtos.
 
 Para atualizar um site já publicado, substitua os arquivos no mesmo projeto e publique. Antes, baixe um backup. Mantenha o mesmo endereço para acessar os dados já salvos no navegador.
+
+## Planejado e Produzido por PDV
+
+Cada local possui duas colunas. O modo Editar planejamento libera Planejado. O modo Apontar produção · Josué libera Produzido e mantém o planejamento somente para consulta. Isso é uma proteção de interface, sem autenticação ou permissão por usuário. O realizado é sempre exato, sem arredondamento. Vazio significa não informado; 0 é um apontamento explícito. Totais e diferenças dos apontamentos incompletos são parciais. A meta arredondada da cozinha continua em cartão separado.
+
+O botão Importar plano aceita JSON no formato do botão Modelo para o Claude. Envie o arquivo de origem e o modelo JSON ao Claude e peça que ele preencha as quantidades planejadas. Depois importe o resultado. Os produtos e locais precisam estar cadastrados; nomes desconhecidos, itens duplicados e quantidades inválidas bloqueiam a importação inteira, sem importação parcial. A tela mostra o resumo antes de confirmar. Cada importação cria um novo plano salvo no histórico e abre no modo de apontamento, com realizado em branco.
+
+O site não tem integração automática com Claude, endpoint de escrita nem sincronização entre aparelhos. Essas funções dependem do banco ainda pendente. Para transferir planos entre aparelhos nesta versão, use o backup completo (v3, inclui o produzido). Backups v1 e v2 continuam aceitos; registros antigos são tratados como planejamento e o realizado começa vazio.
