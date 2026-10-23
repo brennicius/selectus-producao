@@ -45,3 +45,13 @@ O site não tem integração automática com Claude, endpoint de escrita nem sin
 Ao abrir ou recarregar o site, escolha ADM ou Josué / Cozinha no popup inicial. ADM abre o planejamento e os cadastros. Josué / Cozinha abre o apontamento do produzido, com planejamento e data/lote apenas para consulta. Importação, criação de novos planos, exemplos, cadastros, restauração de backup e exclusão do histórico ficam fora da interface da cozinha. Histórico, salvar, exportar e imprimir continuam disponíveis.
 
 O botão no topo identifica o perfil ativo e permite trocar a qualquer momento sem apagar os lançamentos. A etapa não é mais alterada por um seletor separado: acompanha o perfil. A escolha é solicitada a cada abertura/recarregamento, adequada para aparelho compartilhado. É uma escolha de interface sem senha, não uma autenticação ou autorização de segurança.
+
+## Cozinha em tablet e celular
+
+O perfil Josué / Cozinha usa uma interface própria de cartões, adaptada por CSS a celular (uma coluna), tablet (duas colunas) e telas maiores (três colunas), com controles de toque. A tabela administrativa continua disponível no perfil ADM.
+
+- Total a produzir: produtos de todos os locais e meta da cozinha com arredondamento de sobremesas.
+- Ver por loja: selecione o local e consulte o planejamento exato e o realizado.
+- Registrar produzido: selecione a loja, digite a quantidade ou use +/−, Feito como planejado ou Não produzido (0). O preenchimento começa vazio, distinto de zero. Salvar produção desta loja atualiza o plano completo no histórico local, mantendo os dados das outras lojas. Edições ficam em rascunho automático.
+
+Busca de produtos e opção de mostrar itens sem pedido estão disponíveis. Produtos omitidos do planejamento podem receber realizado ao habilitar essa opção. Escolher outro plano abre o histórico. O botão Imprimir mantém as opções de relatório. Nenhum plano ou cadastro de teste está incluído no pacote. O banco e a sincronização ainda não estão conectados.
