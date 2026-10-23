@@ -54,16 +54,21 @@ const ExcelProduction = (() => {
     if(!columns.length)throw Error('A aba não tem colunas de locais reconhecíveis.');
     return {grid,headerRow,columns,...metadata(grid,headerRow,date1904)};
   }
-  async function read(buffer,pdvs){
+  async function readWorkbook(buffer,onlySheets=null){
     const files=await unzip(buffer),workbook=xml(files.get('xl/workbook.xml')),rels=xml(files.get('xl/_rels/workbook.xml.rels'));
     const shared=files.has('xl/sharedStrings.xml')?elements(xml(files.get('xl/sharedStrings.xml')),'si').map(si=>elements(si,'t').map(t=>t.textContent).join('')):[];
     const relationships=new Map(elements(rels,'Relationship').filter(r=>r.getAttribute('TargetMode')!=='External').map(r=>[r.getAttribute('Id'),r.getAttribute('Target')]));const found=[];
     const date1904=['1','true'].includes(elements(workbook,'workbookPr')[0]?.getAttribute('date1904'));
     for(const sheet of elements(workbook,'sheet')){
+      if(onlySheets&&!onlySheets.includes(sheet.getAttribute('name')))continue;
       const id=sheet.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id')||sheet.getAttribute('r:id'),target=relationships.get(id);if(!target)continue;
       const parts=(target.startsWith('/')?target.slice(1):'xl/'+target).split('/'),path=[];for(const part of parts){if(part==='..')path.pop();else if(part&&part!=='.')path.push(part);}
-      const source=files.get(path.join('/'));if(!source)continue;const result=identify(sheetGrid(source,shared),pdvs,date1904);if(result)found.push({...result,sheet:sheet.getAttribute('name')});
+      const source=files.get(path.join('/'));if(!source)continue;found.push({grid:sheetGrid(source,shared),date1904,sheet:sheet.getAttribute('name')});
     }
+    return found;
+  }
+  async function read(buffer,pdvs){
+    const found=(await readWorkbook(buffer)).map(s=>{const r=identify(s.grid,pdvs,s.date1904);return r?{...r,sheet:s.sheet}:null;}).filter(Boolean);
     if(found.length!==1)throw Error(found.length?'Há mais de uma aba de produção. Envie um arquivo com apenas o plano que deseja importar.':'Não encontrei uma aba com o cabeçalho Produto e as colunas dos locais.');return found[0];
   }
   function incoming(parsed,date,lot,catalog,mapping){
@@ -80,5 +85,5 @@ const ExcelProduction = (() => {
     }
     if(!productCount)throw Error('Nenhum produto cadastrado foi encontrado no arquivo.');return {versao:1,data_producao:date,lote:lot.trim(),itens:items};
   }
-  return {read,incoming,identify,defaultClient,unzip};
+  return {read,readWorkbook,incoming,identify,defaultClient,unzip};
 })();
