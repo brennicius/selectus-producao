@@ -23,3 +23,11 @@ Esta versão salva no navegador e dispositivo em uso, sem banco compartilhado, l
 ## Abrir localmente
 
 Abra um terminal nesta pasta e execute `python3 -m http.server 3000` (ou `python -m http.server 3000` no Windows). Acesse http://localhost:3000. Sem dependências externas.
+
+## Atualização: cadastros e impressão
+
+A tabela tem rolagem interna com os cabeçalhos dos locais e a coluna de produtos fixos. Em Produtos e clientes, adicione produtos nas cinco categorias e cadastre novos locais. Eles aparecem automaticamente no plano, nos totais e na exportação. Os cadastros também ficam neste navegador. O backup versão 2 inclui cadastros; arquivos antigos versão 1 continuam aceitos. A importação mescla clientes por nome exato e produtos por identificador, preservando as colunas originais.
+
+Em Imprimir, escolha produção consolidada (todos os locais), distribuição de um local ou folhas separadas para todos os locais. Pode incluir ou omitir os produtos zerados. A impressão exige data e lote. Sobremesas arredondam apenas no relatório consolidado; a distribuição usa quantidades exatas. Cada local começa em uma página nova e pode ocupar mais páginas caso tenha muitos produtos.
+
+Para atualizar um site já publicado, substitua os arquivos no mesmo projeto e publique. Antes, baixe um backup. Mantenha o mesmo endereço para acessar os dados já salvos no navegador.
