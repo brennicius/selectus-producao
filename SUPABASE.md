@@ -37,3 +37,38 @@ O importador encontra uma única aba com Produto na primeira coluna, lê as colu
 Quantidades vazias viram zero planejado; números fracionários/negativos, fórmulas nas quantidades por local e produtos desconhecidos bloqueiam o plano inteiro. A conferência mostra os totais por local e a data/lote antes de habilitar a importação. A observação escrita no cabeçalho não substitui os números preenchidos. A coluna Produzido começa vazia. A regra existente de arredondamento de sobremesas na meta da cozinha continua ativa, independentemente das fórmulas de total do Excel.
 
 Teste de navegador com a planilha fornecida: 26/10/2026, 25 produtos, seis locais, 489 unidades planejadas, sendo Portugues 171, Amaro 108, Izabel 142, Agnus 8, CRIS 40 e Amaro2 20. A conferência não salvou esse plano no banco, pois o lote real não foi informado. Testes adicionais cobrem siglas, subtotais, fórmulas, quantidades inválidas, campos obrigatórios e ZIP inválido.
+
+## Conferência, expedição e descartes
+
+A migração `db/conference.sql` adiciona auditoria somente de leitura pela API,
+registros de envio por plano/produto/PDV e uma cópia versionada dos descartes.
+Aplique após o esquema público existente. Valide com `db/conference-checks.sql`
+(todos os registros de teste são revertidos).
+
+Na aba Conferência, uma correção exige quantidade, motivo e responsável informado.
+O histórico guarda antes/depois e horário do servidor. Revisões feitas pela tela
+antiga da cozinha também geram auditoria automática quando já havia um valor.
+Primeiros apontamentos não são classificados como erros. Sem login, os nomes não
+são identidades verificadas. Registros de auditoria não podem ser alterados ou
+apagados pelo cliente público.
+
+Envio é registrado explicitamente, separadamente do produzido. A comparação soma
+os envios e descartes por lote exato (sem trocar O por 0), produto associado e PDV.
+Se um plano do mesmo lote ainda tiver envio pendente, não calcula percentual.
+Saldo é enviado menos descartado: não é venda nem estoque atual.
+
+O XLSX usa apenas Dados Brutos (Tipo=Descarte), ou Relatório de Lotes como fallback.
+Não soma abas derivadas. Cada importação substitui uma única cópia com controle de
+revisão; repetir o arquivo não duplica registros. Use exportações completas para
+manter o histórico da origem. Dados sem lote e nomes não associados ficam nas
+pendências. As associações são explícitas e compartilhadas no Supabase.
+
+A cópia não sincroniza automaticamente com o Google Sheets. Para atualizar,
+exporte a planilha original como XLSX e use Atualizar com planilha na aba Envios e
+descartes. Não é necessário tornar a planilha pública. Integração automática exige
+um serviço autorizado a ler a planilha; nenhuma credencial Google é enviada ao
+navegador. O arquivo da origem não é alterado.
+
+Validação local: `node --test tests/*.test.cjs`.
+
+Planos com envio registrado preservam data e lote e não podem ser excluídos pela tela; isso impede que os envios mudem de lote ou desapareçam da comparação. Corrija as quantidades pela Conferência.

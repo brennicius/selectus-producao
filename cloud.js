@@ -15,7 +15,7 @@ const CLOUD_KEY='sb_publishable_fMp2pAcRUoNG71msVW4KFQ_kS6Mmm3o';
   }
   const mutate=(action,body)=>api('rpc/production_mutate',{action,body});
   async function operation(fn){
-    if(busy)return;busy=true;document.body.classList.add('cloud-busy');const panels=['#editor','#manage','#history','header','.cloud-toolbar'].map(selector=>document.querySelector(selector)).filter(Boolean);panels.forEach(panel=>panel.inert=true);
+    if(busy)return;busy=true;document.body.classList.add('cloud-busy');const panels=['#editor','#manage','#history','#conference','#waste','header','.cloud-toolbar'].map(selector=>document.querySelector(selector)).filter(Boolean);panels.forEach(panel=>panel.inert=true);
     try{return await fn();}catch(e){status(e.message.includes('CONFLICT')?'Conflito de edição. Baixe um backup do rascunho e atualize os dados antes de tentar novamente.':'Falha ao salvar online. O rascunho foi mantido neste aparelho.',true);toast(e.message);return null;}
     finally{busy=false;panels.forEach(panel=>panel.inert=false);document.body.classList.remove('cloud-busy');}
   }
@@ -93,5 +93,6 @@ const CLOUD_KEY='sb_publishable_fMp2pAcRUoNG71msVW4KFQ_kS6Mmm3o';
     }catch(error){ready=false;status('Não foi possível conectar ao banco. Seus dados locais foram preservados.',true);$('#profileLoad').textContent=error.message;$('#retryConnection').hidden=false;}
   }
   $('#retryConnection').onclick=enter;
+  window.ProductionCloud={api,operation,requireAdmin,assertClean(){requireAdmin();if(dirty)throw Error("Salve o rascunho do plano ou atualize os dados antes de usar a conferência.");},refresh:()=>loadCloud(false),accept:mergeSaved};
   enter();
 })();
