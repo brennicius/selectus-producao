@@ -21,18 +21,26 @@ const Reconciliation=(()=>{
   });
   if(!rows.length)throw Error('Nenhum registro de descarte encontrado.');return {rows,sheet:source.sheet};
  }
- function productId(name,products,mapping={}){const key=norm(name);if(Object.prototype.hasOwnProperty.call(mapping,key))return products.some(p=>p.id===mapping[key])?mapping[key]:null;const exact=products.filter(p=>norm(p.name)===key);return exact.length===1?exact[0].id:null;}
+ const aliases={
+ 'MIX DE FRUTAS UVA E MANGA - 150G':'MIX DE FRUTAS UVA E MANGA',
+ 'SALADA CAESAR GOURMET - N':'SALADA CAESAR GOURMET',
+ 'SALADA TERIYAKI COM PROTEINA - N':'SALADA TERIYAKI COM PROTEINA',
+ 'SALADA DE FRANGO + PROTEINA':'SALADA PEITO DE FRANGO + PROTEINA',
+ 'SANDUICHE DE FRANGO DEFUMADO':'SANDUICHE FRANGO DEFUMADO GOURMET',
+ 'SANDUICHE DE PERNIL ARTESANAL':'SANDUICHE PERNIL ARTESANAL'
+ };
+ function productId(name,products,mapping={}){const key=norm(name);if(mapping[key]&&products.some(p=>p.id===mapping[key]))return mapping[key];const target=aliases[key]||key,exact=products.filter(p=>norm(p.name)===target);return exact.length===1?exact[0].id:null;}
  function storeId(name,pdvs){const key=norm(name).replace(/\s/g,'');const i=pdvs.findIndex(p=>norm(p).replace(/\s/g,'')===key);return i<0?null:i;}
  function compare(plans,shipments,source,products,pdvs){
-  const groups=new Map(),pending=[];const get=(l,p,s)=>{const k=JSON.stringify([lot(l),p,s]);if(!groups.has(k))groups.set(k,{lot:lot(l),product:p,store:s,sent:0,missing:0,discarded:0,records:0,hasShipment:false});return groups.get(k);};
+  const groups=new Map(),pending=[],ignored=[];const get=(l,p,s)=>{const k=JSON.stringify([lot(l),p,s]);if(!groups.has(k))groups.set(k,{lot:lot(l),product:p,store:s,sent:0,missing:0,discarded:0,records:0,hasShipment:false});return groups.get(k);};
   const lookup=new Map(shipments.map(x=>[JSON.stringify([x.plan_id,x.product_id,x.store_no]),x.quantity]));
   for(const p of plans)for(const product of products)for(let i=0;i<pdvs.length;i++){
    const sent=lookup.get(JSON.stringify([p.id,product.id,i])),planned=p.values?.[product.id]?.[i]??0,actual=p.actual?.[product.id]?.[i]??null;
    if(sent===undefined&&!planned&&(actual===null||actual===0))continue;
    const g=get(p.lot,product.id,i);if(sent===undefined)g.missing++;else{g.sent+=sent;g.hasShipment=true;}
   }
-  for(const row of source?.rows||[]){const p=productId(row.product,products,source.mapping),s=storeId(row.store,pdvs);if(!lot(row.lot)||!p||s===null){pending.push({...row,issue:!lot(row.lot)?'Sem lote':!p?'Produto não associado':'Local não cadastrado'});continue;}const g=get(row.lot,p,s);g.discarded+=row.quantity;g.records++;}
-  return {rows:[...groups.values()].map(g=>({...g,complete:g.hasShipment&&g.missing===0,balance:g.hasShipment&&g.missing===0?g.sent-g.discarded:null,rate:g.hasShipment&&g.missing===0&&g.sent>0?g.discarded/g.sent*100:null})).sort((a,b)=>b.lot.localeCompare(a.lot)||a.store-b.store||a.product.localeCompare(b.product)),pending};
+  for(const row of source?.rows||[]){const p=productId(row.product,products,source.mapping),s=storeId(row.store,pdvs);if(!p){ignored.push(row);continue;}if(!lot(row.lot)||s===null){pending.push({...row,issue:!lot(row.lot)?'Sem lote':!p?'Produto não associado':'Local não cadastrado'});continue;}const g=get(row.lot,p,s);g.discarded+=row.quantity;g.records++;}
+  return {rows:[...groups.values()].map(g=>({...g,complete:g.hasShipment&&g.missing===0,balance:g.hasShipment&&g.missing===0?g.sent-g.discarded:null,rate:g.hasShipment&&g.missing===0&&g.sent>0?g.discarded/g.sent*100:null})).sort((a,b)=>b.lot.localeCompare(a.lot)||a.store-b.store||a.product.localeCompare(b.product)),pending,ignored};
  }
  return {norm,lot,parse,productId,storeId,compare};
 })();
