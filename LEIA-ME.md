@@ -39,3 +39,9 @@ Cada local possui duas colunas. O modo Editar planejamento libera Planejado. O m
 O botão Importar plano aceita JSON no formato do botão Modelo para o Claude. Envie o arquivo de origem e o modelo JSON ao Claude e peça que ele preencha as quantidades planejadas. Depois importe o resultado. Os produtos e locais precisam estar cadastrados; nomes desconhecidos, itens duplicados e quantidades inválidas bloqueiam a importação inteira, sem importação parcial. A tela mostra o resumo antes de confirmar. Cada importação cria um novo plano salvo no histórico e abre no modo de apontamento, com realizado em branco.
 
 O site não tem integração automática com Claude, endpoint de escrita nem sincronização entre aparelhos. Essas funções dependem do banco ainda pendente. Para transferir planos entre aparelhos nesta versão, use o backup completo (v3, inclui o produzido). Backups v1 e v2 continuam aceitos; registros antigos são tratados como planejamento e o realizado começa vazio.
+
+## Seleção de perfil
+
+Ao abrir ou recarregar o site, escolha ADM ou Josué / Cozinha no popup inicial. ADM abre o planejamento e os cadastros. Josué / Cozinha abre o apontamento do produzido, com planejamento e data/lote apenas para consulta. Importação, criação de novos planos, exemplos, cadastros, restauração de backup e exclusão do histórico ficam fora da interface da cozinha. Histórico, salvar, exportar e imprimir continuam disponíveis.
+
+O botão no topo identifica o perfil ativo e permite trocar a qualquer momento sem apagar os lançamentos. A etapa não é mais alterada por um seletor separado: acompanha o perfil. A escolha é solicitada a cada abertura/recarregamento, adequada para aparelho compartilhado. É uma escolha de interface sem senha, não uma autenticação ou autorização de segurança.

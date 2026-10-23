@@ -10,7 +10,7 @@ const toast=t=>{ $('#toast').textContent=t;$('#toast').style.display='block';cle
 let plans=[],plan=fresh(),filter='Todas';
 try{plans=JSON.parse(localStorage.getItem(KEY)||'[]');plan=JSON.parse(localStorage.getItem(DRAFT)||'null')||fresh();}catch{toast('Não foi possível recuperar os dados locais.');}
 plan.actual??={};
-let workMode='planning',pendingImport=null;
+let workMode='planning',pendingImport=null,accessProfile=null;
 function persistDraft(){try{localStorage.setItem(DRAFT,JSON.stringify(plan));$('#saveState').textContent='Rascunho salvo neste navegador';}catch{toast('Não foi possível salvar. Exporte um backup.');}}
 const quantities=p=>PDVS.map((_,i)=>Number(plan.values[p.id]?.[i])||0);
 const sum=a=>a.reduce((x,y)=>x+y,0);
@@ -23,7 +23,7 @@ function summaryCells(products){const planned=PDVS.map(()=>0),actual=PDVS.map(()
 function refreshNumbers(){updateStats();CATALOG.forEach(c=>{const visible=c.products.filter(p=>p.name.toLocaleLowerCase('pt-BR').includes($('#search').value.toLocaleLowerCase('pt-BR')));const sub=[...document.querySelectorAll('[data-sub]')].find(r=>r.dataset.sub===c.name);if(sub)sub.innerHTML=`<td>Subtotal · ${esc(c.name)}</td>`+summaryCells(visible);c.products.forEach(p=>{const row=document.querySelector(`[data-product="${p.id}"]`);if(!row)return;const q=sum(quantities(p)),a=actualSum(p),complete=actualValues(p).some(n=>n!==null);row.querySelector('[data-total-planned]').textContent=q;row.querySelector('[data-total-actual]').textContent=complete?a:'—';const delta=row.querySelector('[data-delta]');delta.textContent=complete?(a-q>0?'+':'')+(a-q):'—';delta.className='total '+(complete&&a<q?'negative':'');});});const grand=$('tfoot tr');if(grand)grand.innerHTML='<td>Total geral do plano</td>'+summaryCells(CATALOG.flatMap(c=>c.products));}
 function render(){
  $('#date').value=plan.date;$('#lot').value=plan.lot;
- $('#workMode').value=workMode;$('#date').disabled=workMode==='actual';$('#lot').disabled=workMode==='actual';
+ $('#workStage').textContent=accessProfile==='kitchen'?'Apontar produção · Josué / Cozinha':accessProfile==='admin'?'Editar planejamento · ADM':'Escolha seu perfil';$('#date').disabled=workMode==='actual';$('#lot').disabled=workMode==='actual';
  $('#tabs').innerHTML=['Todas',...CATALOG.map(c=>c.name)].map(n=>`<button class="${filter===n?'active':''}" data-category="${esc(n)}">${esc(n)}</button>`).join('');
  const search=$('#search').value.toLocaleLowerCase('pt-BR');let count=0;let body='';
  CATALOG.filter(c=>filter==='Todas'||filter===c.name).forEach(c=>{const products=c.products.filter(p=>p.name.toLocaleLowerCase('pt-BR').includes(search));if(!products.length)return;count+=products.length;
@@ -35,7 +35,7 @@ function render(){
 }
 function updateStats(){const t=totals(),a=actualTotals();$('#requested').textContent=t.requested;$('#production').textContent=t.production;$('#actualTotal').textContent=a.actual;$('#actualProgress').textContent=`${a.filled} de ${a.expected} apontamentos previstos preenchidos`;$('#destinations').innerHTML=`${t.pdvs.filter(n=>n>0).length} <em>/ ${PDVS.length}</em>`;}
 $('#tables').addEventListener('input',e=>{const el=e.target;if(!el.matches('input[data-id]'))return;if(!el.validity.valid){el.reportValidity();return;}const id=el.dataset.id,i=Number(el.dataset.pdv);if(el.dataset.kind==='actual'){plan.actual??={};plan.actual[id]=PDVS.map((_,j)=>plan.actual[id]?.[j]??null);plan.actual[id][i]=el.value===''?null:Number(el.value);}else{plan.values[id]=PDVS.map((_,j)=>Number(plan.values[id]?.[j])||0);plan.values[id][i]=Number(el.value)||0;}persistDraft();refreshNumbers();});
-$('#workMode').onchange=e=>{workMode=e.target.value;render();};
+
 $('#date').onchange=e=>{plan.date=e.target.value;persistDraft();};$('#lot').oninput=e=>{plan.lot=e.target.value;persistDraft();};
 $('#search').oninput=render;$('#tabs').onclick=e=>{if(e.target.dataset.category){filter=e.target.dataset.category;render();}};
 function editor(){ $('#manage').hidden=true;$('#manageNav').classList.remove('active');$('#editor').hidden=false;$('#history').hidden=true;$('#planNav').classList.add('active');$('#historyNav').classList.remove('active');$('h1').textContent='Plano de produção';render(); }
@@ -47,7 +47,7 @@ function download(name,data,type){const url=URL.createObjectURL(new Blob([data],
 const csvCell=v=>'"'+String(v).replace(/"/g,'""').replace(/^[=+@-]/,"'$&")+'"';
 $('#csv').onclick=()=>{const rows=[['Data de produção',plan.date],['Lote',plan.lot],[],['Categoria','Produto','PDV','Planejado','Produzido','Diferença']];CATALOG.forEach(c=>c.products.forEach(p=>{const q=quantities(p),a=actualValues(p);PDVS.forEach((name,i)=>rows.push([c.name,p.name,name,q[i],a[i]??'',a[i]===null?'':a[i]-q[i]]));}));download('selectus-planejado-produzido-'+(plan.date||'plano')+'.csv','\ufeff'+rows.map(r=>r.map(csvCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');};
 $('#print').onclick=()=>{$('#printClient').innerHTML=PDVS.map((n,i)=>`<option value="${i}">${esc(n)}</option>`).join('');$('#printDialog').showModal();};
-function history(){ $('#manage').hidden=true;$('#manageNav').classList.remove('active');$('#editor').hidden=true;$('#history').hidden=false;$('#planNav').classList.remove('active');$('#historyNav').classList.add('active');$('h1').textContent='Histórico de produção';$('#historyList').innerHTML=plans.length?[...plans].sort((a,b)=>b.date.localeCompare(a.date)).map(p=>`<div class="history-row"><span><b>${esc(p.date.split('-').reverse().join('/'))} · Lote ${esc(p.lot)}</b><small>${sum(Object.values(p.values).flat())} unidades planejadas · ${sum(Object.values(p.actual||{}).flat().map(n=>n??0))} produzidas</small></span><button data-open="${esc(p.id)}">Abrir plano</button><button data-delete="${esc(p.id)}">Excluir</button></div>`).join(''):'<p class="empty">Nenhum plano salvo ainda. Preencha a data e o lote e clique em Salvar plano.</p>';}
+function history(){ $('#manage').hidden=true;$('#manageNav').classList.remove('active');$('#editor').hidden=true;$('#history').hidden=false;$('#planNav').classList.remove('active');$('#historyNav').classList.add('active');$('h1').textContent='Histórico de produção';$('#historyList').innerHTML=plans.length?[...plans].sort((a,b)=>b.date.localeCompare(a.date)).map(p=>`<div class="history-row"><span><b>${esc(p.date.split('-').reverse().join('/'))} · Lote ${esc(p.lot)}</b><small>${sum(Object.values(p.values).flat())} unidades planejadas · ${sum(Object.values(p.actual||{}).flat().map(n=>n??0))} produzidas</small></span><button data-open="${esc(p.id)}">Abrir plano</button>${accessProfile==='kitchen'?'':`<button data-delete="${esc(p.id)}">Excluir</button>`}</div>`).join(''):'<p class="empty">Nenhum plano salvo ainda. Preencha a data e o lote e clique em Salvar plano.</p>';}
 $('#historyNav').onclick=history;$('#historyList').onclick=e=>{if(e.target.dataset.open){if(!confirm('Abrir este plano e substituir o rascunho atual?'))return;plan=structuredClone(plans.find(p=>p.id===e.target.dataset.open));plan.actual??={};persistDraft();editor();}if(e.target.dataset.delete&&confirm('Excluir este plano do histórico?')){const next=plans.filter(p=>p.id!==e.target.dataset.delete);try{localStorage.setItem(KEY,JSON.stringify(next));plans=next;history();}catch{toast('Não foi possível excluir.');}}};
 function backupData(){return {version:3,pdvs:PDVS,catalog:CATALOG,plans,draft:plan};}
 $('#backup').onclick=()=>download('selectus-backup-'+today()+'.json',JSON.stringify(backupData(),null,2),'application/json');
@@ -114,6 +114,21 @@ function invalidateImport(){pendingImport=null;$('#applyImport').disabled=true;$
 $('#planJSON').oninput=invalidateImport;
 $('#planFile').onchange=async e=>{invalidateImport();try{const file=e.target.files[0];if(!file)return;if(file.size>5000000)throw Error('O arquivo deve ter até 5 MB.');$('#planJSON').value=await file.text();}catch(err){$('#importReview').textContent=err.message;}finally{e.target.value='';}};
 $('#reviewImport').onclick=()=>{try{pendingImport=parseIncomingPlan($('#planJSON').value);$('#importReview').textContent=`Data: ${pendingImport.plan.date.split('-').reverse().join('/')} · Lote: ${pendingImport.plan.lot} · ${pendingImport.rows} linhas · ${pendingImport.units} unidades planejadas. Os campos Produzido começarão em branco.`;$('#applyImport').disabled=false;}catch(err){pendingImport=null;$('#applyImport').disabled=true;$('#importReview').textContent=err.message;}};
-$('#applyImport').onclick=()=>{if(!pendingImport)return;if(!confirm('Criar um novo plano importado e substituir o rascunho em tela? Salve o trabalho atual no histórico antes de continuar.'))return;const next=pendingImport.plan,newPlans=[...plans,{...structuredClone(next),updatedAt:new Date().toISOString()}];try{localStorage.setItem(KEY,JSON.stringify(newPlans));localStorage.setItem(DRAFT,JSON.stringify(next));plans=newPlans;plan=next;workMode='actual';filter='Todas';$('#search').value='';$('#importDialog').close();pendingImport=null;editor();toast('Plano importado e salvo. Josué já pode apontar a produção.');}catch{toast('Não foi possível concluir. Baixe um backup e tente novamente.');}};
+$('#applyImport').onclick=()=>{if(!pendingImport)return;if(!confirm('Criar um novo plano importado e substituir o rascunho em tela? Salve o trabalho atual no histórico antes de continuar.'))return;const next=pendingImport.plan,newPlans=[...plans,{...structuredClone(next),updatedAt:new Date().toISOString()}];try{localStorage.setItem(KEY,JSON.stringify(newPlans));localStorage.setItem(DRAFT,JSON.stringify(next));plans=newPlans;plan=next;workMode=accessProfile==='kitchen'?'actual':'planning';filter='Todas';$('#search').value='';$('#importDialog').close();pendingImport=null;editor();toast('Plano importado e salvo. Troque para Josué / Cozinha para apontar a produção.');}catch{toast('Não foi possível concluir. Baixe um backup e tente novamente.');}};
+function setProfile(profile){
+ accessProfile=profile;workMode=profile==='kitchen'?'actual':'planning';
+ const kitchen=profile==='kitchen';
+ ['newPlan','importPlan','planTemplate','example','manageNav'].forEach(id=>$('#'+id).hidden=kitchen);
+ $('#restore').closest('label').hidden=kitchen;
+ $('#switchProfile').textContent=(kitchen?'Josué / Cozinha':'ADM')+' · Trocar perfil';
+ $('#profileDialog').close();editor();
+}
+$('#chooseAdmin').onclick=()=>setProfile('admin');
+$('#chooseKitchen').onclick=()=>setProfile('kitchen');
+$('#switchProfile').onclick=()=>{$('#cancelProfile').hidden=!accessProfile;$('#profileDialog').showModal();};
+$('#cancelProfile').onclick=()=>$('#profileDialog').close();
+$('#profileDialog').addEventListener('cancel',e=>{if(!accessProfile)e.preventDefault();});
 render();
+$('#profileDialog').showModal();
+
 
