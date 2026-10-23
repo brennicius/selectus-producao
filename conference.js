@@ -2,6 +2,7 @@
 (()=>{
  const cloud=window.ProductionCloud,R=Reconciliation,dispatchDrafts=new Map();
  const dispatchKey=()=>JSON.stringify([selected,store]);
+ const conferenceProducts=(p)=>products().filter(x=>(p?.values?.[x.id]?.[store]??0)>0);
  let shipments=[],audit=[],source=null,selected='',store=0,report=[],pending=[];
  const products=()=>CATALOG.flatMap(c=>c.products),el=id=>document.getElementById(id);
  const fmt=n=>n===null||n===undefined?'Não informado':String(n);
@@ -34,10 +35,11 @@
   if(!plans.some(p=>p.id===selected))selected=plans.find(p=>p.id===plan.id)?.id||plans[0]?.id||'';
   el('cfPlan').innerHTML=options([...plans].sort((a,b)=>b.date.localeCompare(a.date)).map(p=>[p.id,`${p.date.split('-').reverse().join('/')} · ${p.lot}`]),selected);
   el('cfStore').innerHTML=options(PDVS.map((n,i)=>[i,n]),store);const p=plans.find(p=>p.id===selected);
-  if(p&&!dispatchDrafts.has(dispatchKey()))dispatchDrafts.set(dispatchKey(),{fields:ShipmentEntry.seed(p,shipments,products(),store),dirty:false});
+  if(p&&!dispatchDrafts.has(dispatchKey()))dispatchDrafts.set(dispatchKey(),{fields:ShipmentEntry.seed(p,shipments,conferenceProducts(p),store),dirty:false});
   const draft=dispatchDrafts.get(dispatchKey());
-  el('cfRows').innerHTML=p?table(['Produto','Planejado','Produzido','Envio já registrado','Quantidade a enviar','Conferir'],products().map(x=>{const a=p.actual?.[x.id]?.[store]??null,d=draft.fields[x.id]??={value:'',expected:null,expected_actual:a};return [esc(x.name),p.values?.[x.id]?.[store]??0,esc(fmt(a)),esc(fmt(d.expected)),`<input class="dispatch-quantity" type="number" inputmode="numeric" min="0" max="999999" step="1" data-dispatch="${esc(x.id)}" value="${esc(d.value)}" placeholder="Não informado" aria-label="Quantidade a enviar · ${esc(x.name)} · ${esc(PDVS[store])}">`,`<button type="button" data-correct="${esc(x.id)}" ${a===null?'disabled':''}>Corrigir produzido</button>`];})):'<p class="empty">Salve um plano de produção para iniciar a conferência.</p>';
-  el('cfDispatchSave').disabled=!p;el('cfDispatchReset').disabled=!p;
+  el('cfRows').innerHTML=p?table(['Produto','Planejado','Produzido','Envio já registrado','Quantidade a enviar','Conferir'],conferenceProducts(p).map(x=>{const a=p.actual?.[x.id]?.[store]??null,d=draft.fields[x.id]??={value:'',expected:null,expected_actual:a};return [esc(x.name),p.values?.[x.id]?.[store]??0,esc(fmt(a)),esc(fmt(d.expected)),`<input class="dispatch-quantity" type="number" inputmode="numeric" min="0" max="999999" step="1" data-dispatch="${esc(x.id)}" value="${esc(d.value)}" placeholder="Não informado" aria-label="Quantidade a enviar · ${esc(x.name)} · ${esc(PDVS[store])}">`,`<button type="button" data-correct="${esc(x.id)}" ${a===null?'disabled':''}>Corrigir produzido</button>`];})):'<p class="empty">Salve um plano de produção para iniciar a conferência.</p>';
+  el('cfDispatchSave').disabled=!conferenceProducts(p).length;el('cfDispatchReset').disabled=!p;
+  if(p&&!conferenceProducts(p).length)el('cfRows').innerHTML='<p class="empty">Nenhum produto planejado para esta loja neste lote.</p>';
   el('cfDispatchState').textContent=draft?.dirty?'Quantidades em rascunho. Clique em Registrar envios da loja para salvar.':'Confira as quantidades antes de registrar os envios desta loja.';
   renderAudit();
  }
@@ -53,7 +55,7 @@
  };
  el('cfRows').oninput=e=>{const id=e.target.dataset.dispatch;if(!id)return;const d=dispatchDrafts.get(dispatchKey());d.fields[id].value=e.target.value;d.dirty=true;el('cfDispatchState').textContent='Quantidades em rascunho. Clique em Registrar envios da loja para salvar.';};
  el('cfDispatchReset').onclick=()=>{const d=dispatchDrafts.get(dispatchKey());if(d?.dirty&&!confirm('Recarregar e descartar as quantidades de envio ainda não salvas desta loja?'))return;cloud.operation(async()=>{dispatchDrafts.delete(dispatchKey());await load();});};
- el('cfDispatchForm').onsubmit=e=>{e.preventDefault();cloud.operation(async()=>{cloud.assertClean();const key=dispatchKey(),draft=dispatchDrafts.get(key);if(!draft)return;const items=ShipmentEntry.items(draft.fields);if(!items.length)throw Error('Preencha pelo menos uma quantidade de envio.');const result=await cloud.api('rpc/production_ship_store',{body:{id:selected,store,items,reason:el('cfDispatchReason').value.trim(),responsible:el('cfDispatchWho').value.trim()}});dispatchDrafts.delete(key);await load();el('cfDispatchState').textContent=`Envios da loja salvos online. ${result.saved} registros novos ou revisados.`;toast('Envios da loja registrados.');});};
+ el('cfDispatchForm').onsubmit=e=>{e.preventDefault();cloud.operation(async()=>{cloud.assertClean();const key=dispatchKey(),draft=dispatchDrafts.get(key);if(!draft)return;const allowed=new Set(conferenceProducts(plans.find(p=>p.id===selected)).map(p=>p.id));const items=ShipmentEntry.items(Object.fromEntries(Object.entries(draft.fields).filter(([id])=>allowed.has(id))));if(!items.length)throw Error('Preencha pelo menos uma quantidade de envio.');const result=await cloud.api('rpc/production_ship_store',{body:{id:selected,store,items,reason:el('cfDispatchReason').value.trim(),responsible:el('cfDispatchWho').value.trim()}});dispatchDrafts.delete(key);await load();el('cfDispatchState').textContent=`Envios da loja salvos online. ${result.saved} registros novos ou revisados.`;toast('Envios da loja registrados.');});};
  el('cfClose').onclick=()=>dialog.close();
  el('cfForm').onsubmit=async e=>{e.preventDefault();if(!edit)return;const change=structuredClone(edit),button=el('cfSubmit');dialog.inert=true;button.disabled=true;el('cfError').textContent='';try{cloud.assertClean();const row=await cloud.api('rpc/production_operations',{action:change.kind,body:{...change,quantity:Number(el('cfQuantity').value),reason:el('cfReason').value.trim(),responsible:el('cfResponsible').value.trim()}});if(change.kind==='correction')cloud.accept(row);await load();dialog.close();toast('Conferência salva online.');}catch(error){el('cfError').textContent=error.message.includes('CONFLICT')?'Este registro mudou em outro aparelho. Feche, atualize os dados e confira novamente.':error.message;}finally{dialog.inert=false;button.disabled=false;}};
  function renderWaste(){
