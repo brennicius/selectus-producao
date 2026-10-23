@@ -71,3 +71,7 @@ navegador. O arquivo da origem não é alterado.
 Validação local: `node --test tests/*.test.cjs`.
 
 Planos com envio registrado preservam data e lote e não podem ser excluídos pela tela; isso impede que os envios mudem de lote ou desapareçam da comparação. Corrija as quantidades pela Conferência.
+
+## Sincronização automática opcional
+
+A integração pronta em `integrations/selectus-google-sync.gs` pode ser instalada no Apps Script da planilha original. Após autorização única do proprietário, envia os descartes dos nossos produtos a cada 5 minutos. Veja `integrations/README.md`. A instalação no Google ainda é necessária; o deploy do site não ativa o acionador.
