@@ -38,10 +38,10 @@ revoke all on function production_private.access_role() from public, anon;
 grant execute on function production_private.access_role() to authenticated;
 create policy own_membership on public.production_members for select to authenticated
   using (email=(select lower(auth.jwt()->>'email')));
-create policy team_read_config on public.production_config for select to authenticated
-  using ((select production_private.access_role()) is not null);
-create policy team_read_plans on public.production_plans for select to authenticated
-  using ((select production_private.access_role()) is not null and deleted_at is null);
+create policy team_read_config on public.production_config for select to anon, authenticated
+  using (true);
+create policy team_read_plans on public.production_plans for select to anon, authenticated
+  using (deleted_at is null);
 
 create function public.production_access() returns text language sql stable security invoker set search_path = ''
 as $$ select production_private.access_role(); $$;
@@ -72,26 +72,16 @@ begin
 end; $$;
 revoke all on function production_private.validate_plan(jsonb) from public, anon, authenticated;
 
--- Privileged writes live only in this unexposed schema. Every call checks identity
--- and a confirmed, explicitly approved account. There are no anonymous write policies.
+-- As escritas públicas usam funções validadas. Não há escrita direta nas tabelas.
+-- Qualquer pessoa com o link pode usar as duas telas e enviar alterações.
 create function production_private.mutate(action text, body jsonb) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare actor text; current_row public.production_plans; cfg public.production_config;
   incoming jsonb; existing jsonb; updated jsonb; changes jsonb; expected jsonb; item record;
   value jsonb; old_value jsonb; arr jsonb; product text; store_no int; n int; old_count int;
 begin
-  if auth.uid() is null then raise exception 'Login necessário' using errcode='42501'; end if;
-  actor:=production_private.access_role();
-  if actor is null then raise exception 'Conta sem acesso à Selectus' using errcode='42501'; end if;
-  if action='member' then
-    if actor<>'admin' then raise exception 'Apenas ADM' using errcode='42501'; end if;
-    if body->>'email' is null or body->>'email' !~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$'
-      or body->>'role' not in ('admin','kitchen') then raise exception 'E-mail ou perfil inválido'; end if;
-    if lower(btrim(body->>'email'))=(select lower(u.email) from auth.users u where u.id=auth.uid()) and body->>'role'<>'admin' then raise exception 'Você não pode remover seu próprio acesso ADM'; end if;
-    insert into public.production_members(email,role) values(lower(btrim(body->>'email')),body->>'role')
-      on conflict(email) do update set role=excluded.role;
-    return jsonb_build_object('authorized',true);
-  end if;
+  -- Acesso livre por solicitação explícita do responsável. Não há autenticação por perfil.
+  actor:='admin';
   if action='config' then
     if actor<>'admin' then raise exception 'Apenas ADM' using errcode='42501'; end if;
     select * into cfg from public.production_config where id=true for update;
@@ -178,3 +168,9 @@ create function public.production_mutate(action text,body jsonb) returns jsonb
 language sql security invoker set search_path = '' as $$ select production_private.mutate(action,body); $$;
 revoke all on function public.production_mutate(text,jsonb) from public, anon;
 grant execute on function public.production_mutate(text,jsonb) to authenticated;
+
+-- Leitura e RPC públicas, com revisões e validação de quantidades.
+grant select on public.production_config,public.production_plans to anon;
+grant usage on schema production_private to anon;
+grant execute on function production_private.mutate(text,jsonb) to anon;
+grant execute on function public.production_mutate(text,jsonb) to anon;

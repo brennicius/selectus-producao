@@ -1,32 +1,19 @@
-/* Public project settings. Authorization is enforced by Supabase, never by the profile picker. */
+/* Acesso público solicitado pelo responsável: os perfis organizam a interface. */
 const CLOUD_URL='https://zrljrjyblnclauxjpvdy.supabase.co';
 const CLOUD_KEY='sb_publishable_fMp2pAcRUoNG71msVW4KFQ_kS6Mmm3o';
 (() => {
-  const AUTH='selectus-auth-v1', META='selectus-cloud-draft-v1', LEGACY='selectus-before-cloud-v1';
-  let session=null,role=null,configRevision=0,busy=false,dirty=false,refreshing=null;
+  const META='selectus-cloud-draft-v1', LEGACY='selectus-before-cloud-v1';
+  let ready=false,configRevision=0,busy=false,dirty=false;
   const bases=new Map();
   const localBefore={version:3,pdvs:structuredClone(PDVS),catalog:structuredClone(CATALOG),plans:structuredClone(plans),draft:structuredClone(plan)};
   try{if(!localStorage.getItem(LEGACY))localStorage.setItem(LEGACY,JSON.stringify(localBefore));}catch{}
   const status=(message,error=false)=>{ $('#cloudStatus').textContent=message;$('#cloudStatus').classList.toggle('error',error); };
-  function keepSession(data){session={...data,expires_at:data.expires_at||Math.floor(Date.now()/1000)+data.expires_in};sessionStorage.setItem(AUTH,JSON.stringify(session));}
-  async function authRequest(path,body){
-    const response=await fetch(CLOUD_URL+'/auth/v1/'+path,{method:'POST',headers:{apikey:CLOUD_KEY,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(20000)});
-    const data=await response.json();if(!response.ok)throw Error(data.msg||data.error_description||data.message||'Falha de autenticação');return data;
-  }
-  async function accessToken(){
-    if(!session)throw Error('Faça login para acessar o banco.');
-    if(session.expires_at*1000>Date.now()+60000)return session.access_token;
-    if(!refreshing)refreshing=authRequest('token?grant_type=refresh_token',{refresh_token:session.refresh_token}).then(keepSession).finally(()=>refreshing=null);
-    await refreshing;return session.access_token;
-  }
   async function api(path,body){
-    const token=await accessToken();
-    const response=await fetch(CLOUD_URL+'/rest/v1/'+path,{method:body===undefined?'GET':'POST',headers:{apikey:CLOUD_KEY,Authorization:'Bearer '+token,'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(25000)});
+    const response=await fetch(CLOUD_URL+'/rest/v1/'+path,{method:body===undefined?'GET':'POST',headers:{apikey:CLOUD_KEY,'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(25000)});
     const text=await response.text();let data;try{data=text?JSON.parse(text):null;}catch{throw Error('Resposta inválida do banco.');}
     if(!response.ok)throw Error(data?.message||'Não foi possível acessar o banco.');return data;
   }
   const mutate=(action,body)=>api('rpc/production_mutate',{action,body});
-  const authError=e=>e.message.includes('Invalid login')?'E-mail ou senha incorretos.':e.message.includes('Email not confirmed')?'Confirme seu e-mail antes de entrar.':e.message;
   async function operation(fn){
     if(busy)return;busy=true;document.body.classList.add('cloud-busy');const panels=['#editor','#manage','#history','header','.cloud-toolbar'].map(selector=>document.querySelector(selector)).filter(Boolean);panels.forEach(panel=>panel.inert=true);
     try{return await fn();}catch(e){status(e.message.includes('CONFLICT')?'Conflito de edição. Baixe um backup do rascunho e atualize os dados antes de tentar novamente.':'Falha ao salvar online. O rascunho foi mantido neste aparelho.',true);toast(e.message);return null;}
@@ -34,10 +21,10 @@ const CLOUD_KEY='sb_publishable_fMp2pAcRUoNG71msVW4KFQ_kS6Mmm3o';
   }
   function cache(){try{localStorage.setItem(KEY,JSON.stringify(plans));localStorage.setItem(CONFIG,JSON.stringify({pdvs:PDVS,catalog:CATALOG}));}catch{status('Online. Falha ao manter a cópia local.',true);}}
   const originalPersist=persistDraft;
-  persistDraft=()=>{originalPersist();dirty=true;try{const base=bases.get(plan.id);if(session)localStorage.setItem(META,JSON.stringify({email:session.user.email,id:plan.id,base:base||null}));}catch{}status('Alterações em rascunho · toque em Salvar para enviar ao banco.');};
-  function rememberCurrent(){originalPersist();try{localStorage.setItem(META,JSON.stringify({email:session.user.email,id:plan.id,base:bases.get(plan.id)||null}));}catch{}}
-  function onlineRole(){if(!role)throw Error('Conta sem acesso à Selectus.');}
-  function requireAdmin(){onlineRole();if(role!=='admin')throw Error('Somente o ADM pode executar esta ação.');}
+  persistDraft=()=>{originalPersist();dirty=true;try{const base=bases.get(plan.id);localStorage.setItem(META,JSON.stringify({id:plan.id,base:base||null}));}catch{}status('Alterações em rascunho · toque em Salvar para enviar ao banco.');};
+  function rememberCurrent(){originalPersist();try{localStorage.setItem(META,JSON.stringify({id:plan.id,base:bases.get(plan.id)||null}));}catch{}}
+  function onlineRole(){if(!ready)throw Error('Aguarde a conexão com o banco ou tente Atualizar dados.');}
+  function requireAdmin(){onlineRole();if(accessProfile!=='admin')throw Error('Mude para a tela ADM para executar esta ação.');}
   async function allPlans(){let rows=[];for(let offset=0;;offset+=500){const page=await api('production_plans?select=id,data,revision,updated_at&order=updated_at.desc&limit=500&offset='+offset);rows.push(...page);if(page.length<500)return rows;}}
   async function loadCloud(preserveDraft=false){
     const [configs,rows]=await Promise.all([api('production_config?select=data,revision&id=eq.true'),allPlans()]);
@@ -46,7 +33,7 @@ const CLOUD_KEY='sb_publishable_fMp2pAcRUoNG71msVW4KFQ_kS6Mmm3o';
     bases.clear();rows.forEach(r=>bases.set(r.id,structuredClone(r)));plans=rows.map(r=>structuredClone(r.data));
     let restored=false;
     if(preserveDraft){try{const meta=JSON.parse(localStorage.getItem(META)||'null'),draft=JSON.parse(localStorage.getItem(DRAFT)||'null');
-      if(meta?.email===session.user.email&&draft&&meta.id===draft.id&&validPlan(draft)){
+      if(meta&&draft&&meta.id===draft.id&&validPlan(draft)){
         const remote=bases.get(draft.id);if(!meta.base||remote){plan=draft;if(meta.base)bases.set(draft.id,meta.base);dirty=!remote||JSON.stringify(draft.values)!==JSON.stringify(remote.data.values)||JSON.stringify(draft.actual||{})!==JSON.stringify(remote.data.actual||{})||draft.lot!==remote.data.lot||draft.date!==remote.data.date;restored=true;}
       }}catch{}}
     if(!restored){plan=plans.find(p=>p.id===plan.id)||plans[0]||fresh();plan=structuredClone(plan);plan.actual??={};dirty=false;}
@@ -69,9 +56,9 @@ const CLOUD_KEY='sb_publishable_fMp2pAcRUoNG71msVW4KFQ_kS6Mmm3o';
     const store=kitchenStore,row=await mutate('actual',{id:plan.id,store,changes,expected});mergeSaved(row,true,store);$('#kitchenSaveState').textContent='Produção desta loja salva no Supabase.';toast('Produção de '+PDVS[store]+' salva online.');
   });
   const originalSetProfile=setProfile;
-  setProfile=profile=>{if(!role){$('#profileDialog').close();$('#authDialog').showModal();return;}if(profile==='admin'&&role!=='admin'){toast('Sua conta possui acesso apenas à cozinha.');return;}originalSetProfile(profile);$('#cloudMigrate').hidden=role!=='admin';$('#cloudUsers').hidden=role!=='admin';};
+  setProfile=profile=>{if(!ready){toast('Aguarde a conexão com o banco.');return;}originalSetProfile(profile);$('#cloudMigrate').hidden=profile!=='admin';};
   const originalHistory=history;
-  history=()=>{originalHistory();$('#historyList').querySelectorAll('[data-delete]').forEach(b=>b.hidden=role!=='admin');};
+  history=()=>{originalHistory();$('#historyList').querySelectorAll('[data-delete]').forEach(b=>b.hidden=accessProfile!=='admin');};
   $('#historyNav').onclick=()=>history();$('#kitchenHistory').onclick=()=>history();
   $('#historyList').onclick=e=>{if(e.target.dataset.open){if(dirty&&!confirm('Há alterações em rascunho. Abrir outro plano? Baixe um backup ou salve antes de continuar.'))return;plan=structuredClone(plans.find(p=>p.id===e.target.dataset.open));plan.actual??={};dirty=false;rememberCurrent();editor();}
     if(e.target.dataset.delete)operation(async()=>{requireAdmin();const id=e.target.dataset.delete;if(!confirm('Excluir este plano do histórico online?'))return;await mutate('delete',{id,revision:bases.get(id)?.revision});plans=plans.filter(p=>p.id!==id);bases.delete(id);if(plan.id===id){plan=fresh();dirty=false;rememberCurrent();}cache();history();toast('Plano removido do histórico online.');});};
@@ -96,19 +83,15 @@ const CLOUD_KEY='sb_publishable_fMp2pAcRUoNG71msVW4KFQ_kS6Mmm3o';
   $('#downloadLocal').onclick=()=>{const backup=localStorage.getItem(LEGACY);if(backup)download('selectus-antes-do-banco.json',backup,'application/json');};
   $('#restore').onchange=async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;await operation(async()=>{if(file.size>5000000)throw Error('O backup deve ter até 5 MB.');await migrateBackup(JSON.parse(await file.text()));});};
   $('#cloudRefresh').onclick=()=>operation(async()=>{onlineRole();if(dirty&&!confirm('Atualizar os dados online e descartar o rascunho em tela? Baixe um backup ou salve antes de continuar.'))return;await loadCloud(false);editor();});
-  $('#cloudUsers').onclick=()=>{$('#usersDialog').showModal();};
-  $('#usersForm').onsubmit=e=>{e.preventDefault();operation(async()=>{requireAdmin();await mutate('member',{email:$('#memberEmail').value.trim().toLowerCase(),role:$('#memberRole').value});toast('Acesso autorizado. A pessoa pode criar sua conta e confirmar o e-mail.');$('#usersDialog').close();});};
-  $('#closeUsers').onclick=()=>$('#usersDialog').close();
   async function enter(){
-    role=await api('rpc/production_access',{});if(!role)throw Error('Conta ainda sem autorização. Peça ao ADM para liberar este e-mail.');
-    await loadCloud(true);document.body.classList.remove('cloud-locked');$('#authDialog').close();$('#chooseAdmin').disabled=role!=='admin';$('#profileDialog').showModal();
-    document.querySelectorAll('.kitchen-storage').forEach(e=>e.textContent='Planos e cadastros ficam no Supabase. O rascunho só vai ao banco quando você toca em Salvar.');
-    $('footer span').textContent='Dados compartilhados no Supabase · salve os apontamentos para sincronizar';$('#authIdentity').textContent=session.user.email;
+    $('#chooseAdmin').disabled=true;$('#chooseKitchen').disabled=true;$('#profileLoad').textContent='Carregando os planos online…';
+    try{
+      await loadCloud(true);ready=true;$('#chooseAdmin').disabled=false;$('#chooseKitchen').disabled=false;$('#profileLoad').textContent='';$('#retryConnection').hidden=true;
+      document.querySelectorAll('.kitchen-storage').forEach(e=>e.textContent='Planos e cadastros ficam no Supabase. Toque em Salvar para enviar o rascunho ao banco.');
+      $('footer span').textContent='Dados compartilhados no Supabase · salve os apontamentos para sincronizar';
+      if(!$('#profileDialog').open)$('#profileDialog').showModal();
+    }catch(error){ready=false;status('Não foi possível conectar ao banco. Seus dados locais foram preservados.',true);$('#profileLoad').textContent=error.message;$('#retryConnection').hidden=false;}
   }
-  $('#authForm').onsubmit=async e=>{e.preventDefault();$('#authMessage').textContent='Entrando…';$('#authSubmit').disabled=true;try{const data=await authRequest('token?grant_type=password',{email:$('#authEmail').value.trim(),password:$('#authPassword').value});keepSession(data);$('#authPassword').value='';await enter();}catch(error){$('#authMessage').textContent=authError(error);}finally{$('#authSubmit').disabled=false;}};
-  $('#authSignup').onclick=async()=>{if(!$('#authEmail').reportValidity()||!$('#authPassword').reportValidity())return;$('#authMessage').textContent='Criando conta…';$('#authSignup').disabled=true;try{await authRequest('signup?redirect_to='+encodeURIComponent(location.origin),{email:$('#authEmail').value.trim(),password:$('#authPassword').value});$('#authPassword').value='';$('#authMessage').textContent='Confira seu e-mail para confirmar a conta. Depois volte aqui para entrar. O ADM também precisa autorizar seu e-mail.';}catch(error){$('#authMessage').textContent=authError(error);}finally{$('#authSignup').disabled=false;}};
-  $('#cloudLogout').onclick=async()=>{if(dirty&&!confirm('Sair com alterações ainda em rascunho? Baixe um backup ou salve antes de sair.'))return;try{await fetch(CLOUD_URL+'/auth/v1/logout',{method:'POST',headers:{apikey:CLOUD_KEY,Authorization:'Bearer '+await accessToken()},signal:AbortSignal.timeout(10000)});}catch{}sessionStorage.removeItem(AUTH);session=null;role=null;location.reload();};
-  $('#authDialog').addEventListener('cancel',e=>e.preventDefault());
-  $('#profileDialog').close();document.body.classList.add('cloud-locked');$('#authDialog').showModal();
-  (async()=>{try{session=JSON.parse(sessionStorage.getItem(AUTH)||'null');if(session)await enter();}catch(error){$('#authMessage').textContent=authError(error);}})();
+  $('#retryConnection').onclick=enter;
+  enter();
 })();
