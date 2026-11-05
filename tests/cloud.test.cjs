@@ -13,7 +13,7 @@ test('cloud saves only the selected store and keeps drafts from other stores',as
   else throw Error('Unexpected network request '+url);
   return {ok:true,text:async()=>JSON.stringify(data)};
  }};
- vm.createContext(ctx);let app=fs.readFileSync(path.join(root,'app.js'),'utf8').replace(/render\(\);\s*\$\('#profileDialog'\)\.showModal\(\);\s*$/,'');vm.runInContext(fs.readFileSync(path.join(root,'catalog.js'),'utf8')+'\n'+app+'\n'+fs.readFileSync(path.join(root,'cloud.js'),'utf8'),ctx);
+ vm.createContext(ctx);let app=fs.readFileSync(path.join(root,'app.js'),'utf8').replace(/render\(\);\s*\$\('#profileDialog'\)\.showModal\(\);\s*$/,'');vm.runInContext(fs.readFileSync(path.join(root,'category-utils.js'),'utf8')+'\n'+fs.readFileSync(path.join(root,'catalog.js'),'utf8')+'\n'+app+'\n'+fs.readFileSync(path.join(root,'cloud.js'),'utf8'),ctx);
  await new Promise(setImmediate);await new Promise(setImmediate);
  vm.runInContext("plan.actual['6']=[8,4,null,null,null,null];kitchenStore=0;",ctx);
  await elements.get('#saveKitchen').onclick();

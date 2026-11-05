@@ -56,12 +56,12 @@ function validPlan(p,ids=new Set(CATALOG.flatMap(c=>c.products.map(p=>p.id))),le
 $('#restore').onchange=async e=>{try{
  const file=e.target.files[0];if(!file)return;if(file.size>5000000)throw Error();const b=JSON.parse(await file.text());
  const names=b.version===1?DEFAULT_PDVS:b.pdvs,cats=b.version===1?DEFAULT_CATALOG:b.catalog;
- if(![1,2,3].includes(b.version)||!Array.isArray(names)||names.length<1||names.length>100||names.some(n=>typeof n!=='string'||!n.trim()||n.length>60)||new Set(names).size!==names.length||!Array.isArray(cats)||cats.length!==5)throw Error();
- const ids=new Set();for(const c of cats){if(!DEFAULT_CATALOG.some(d=>d.name===c.name)||!Array.isArray(c.products))throw Error();for(const p of c.products){if(typeof p.id!=='string'||!/^[a-zA-Z0-9-]{1,100}$/.test(p.id)||ids.has(p.id)||typeof p.name!=='string'||!p.name.trim()||p.name.length>120)throw Error();ids.add(p.id);}}
+ if(![1,2,3].includes(b.version)||!Array.isArray(names)||names.length<1||names.length>100||names.some(n=>typeof n!=='string'||!n.trim()||n.length>60)||new Set(names).size!==names.length||!Array.isArray(cats)||!CategoryCatalog.valid(cats))throw Error();
+ const ids=new Set();for(const c of cats){if(!CategoryCatalog.validName(c.name)||!Array.isArray(c.products))throw Error();for(const p of c.products){if(typeof p.id!=='string'||!/^[a-zA-Z0-9-]{1,100}$/.test(p.id)||ids.has(p.id)||typeof p.name!=='string'||!p.name.trim()||p.name.length>120)throw Error();ids.add(p.id);}}
  if(!Array.isArray(b.plans)||!b.plans.every(p=>validPlan(p,ids,names.length))||(b.draft&&!validPlan(b.draft,ids,names.length)))throw Error();
  if(!confirm('Importar os cadastros e planos? Planos com o mesmo identificador serão atualizados. O rascunho atual será mantido.'))return;
  const newPdvs=[...PDVS];names.forEach(n=>{if(!newPdvs.includes(n))newPdvs.push(n);});const newCatalog=structuredClone(CATALOG);
- cats.forEach(c=>c.products.forEach(p=>{const existing=newCatalog.flatMap(c=>c.products).find(q=>q.id===p.id);if(existing&&existing.name!==p.name)throw Error('ID de produto em conflito.');if(!existing)newCatalog.find(d=>d.name===c.name).products.push({...p,example:[]});}));
+ cats.forEach(c=>{if(!newCatalog.some(d=>d.name===c.name))newCatalog.push({name:c.name,products:[]});c.products.forEach(p=>{const existing=newCatalog.flatMap(c=>c.products).find(q=>q.id===p.id);if(existing&&existing.name!==p.name)throw Error('ID de produto em conflito.');if(!existing)newCatalog.find(d=>d.name===c.name).products.push({...p,example:[]});});});
  const merged=new Map(plans.map(p=>[p.id,p]));b.plans.forEach(p=>{const imported=structuredClone(p);for(const id in imported.values){const q=imported.values[id];imported.values[id]=newPdvs.map(n=>q[names.indexOf(n)]||0);}imported.actual??={};for(const id in imported.actual){const q=imported.actual[id];imported.actual[id]=newPdvs.map(n=>q[names.indexOf(n)]??null);}merged.set(p.id,imported);});const next=[...merged.values()];
  localStorage.setItem(CONFIG,JSON.stringify({pdvs:newPdvs,catalog:newCatalog}));localStorage.setItem(KEY,JSON.stringify(next));PDVS.splice(0,PDVS.length,...newPdvs);CATALOG.splice(0,CATALOG.length,...newCatalog);plans=next;history();toast('Cadastros e histórico restaurados.');
  }catch{toast('Backup inválido, conflito de cadastro ou armazenamento indisponível.');}finally{e.target.value='';}};
@@ -74,6 +74,7 @@ function manage(){
 }
 $('#manageNav').onclick=manage;
 const normalize=n=>n.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
+$('#categoryForm').onsubmit=e=>{e.preventDefault();try{const name=$('#categoryName').value.trim(),next=CategoryCatalog.add(CATALOG,name);if(!persistConfig(PDVS,next))return;CATALOG.splice(0,CATALOG.length,...next);$('#categoryForm').reset();manage();$('#productCategory').value=String(CATALOG.length-1);toast('Categoria cadastrada.');}catch(error){toast(error.message);}};
 $('#productForm').onsubmit=e=>{e.preventDefault();const name=$('#productName').value.trim(),category=Number($('#productCategory').value);if(!name)return;
  if(CATALOG.some(c=>c.products.some(p=>normalize(p.name)===normalize(name)))){toast('Já existe um produto com esse nome.');return;}
  const next=structuredClone(CATALOG);next[category].products.push({id:uuid(),name:name.toLocaleUpperCase('pt-BR'),example:[]});if(!persistConfig(PDVS,next))return;CATALOG.splice(0,CATALOG.length,...next);$('#productForm').reset();manage();toast('Produto cadastrado.');};

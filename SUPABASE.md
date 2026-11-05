@@ -90,3 +90,12 @@ revertem o conjunto inteiro; nenhum item é salvo parcialmente. Repetir um regis
 sem mudanças não duplica a auditoria. Os rascunhos por loja são mantidos durante a
 navegação da sessão; Recarregar quantidades descarta o rascunho da loja selecionada
 após confirmação e relê o banco. Validar com `db/bulk-shipments-checks.sql` (rollback).
+
+
+## Categorias personalizadas
+
+A migração aditiva `db/categories.sql` atualiza a validação de cadastros para aceitar entre 1 e 100 categorias, com nomes de até 80 caracteres e sem duplicidades (inclusive as variantes usuais de acentuação). Categorias existentes, inclusive vazias, e seus produtos são preservados. O nome Todas é reservado ao filtro geral.
+
+Em Produtos e clientes, use Nova categoria; após salvar, ela fica selecionada no formulário Novo produto. As categorias ficam compartilhadas no Supabase. Planos, cozinha, importações e relatórios já percorrem o catálogo dinamicamente; a regra de arredondamento continua exclusiva de Sobremesas. Os backups aceitam categorias novas e a restauração pode adicioná-las.
+
+Validação transacional: `db/categories-checks.sql` adiciona categorias/produto/plano de teste e reverte tudo ao final. Teste do fluxo de cadastro: `tests/categories.test.cjs`.
